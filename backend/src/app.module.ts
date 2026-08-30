@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import typeormConfig from './config/typeorm.config.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AuthModule } from './auth/auth.module.js';
 import { TradesModule } from './trades/trades.module.js';
 
 @Module({
@@ -27,6 +28,7 @@ import { TradesModule } from './trades/trades.module.js';
         logging: false,
       }),
     }),
+    AuthModule,
     TradesModule,
   ],
   controllers: [AppController],

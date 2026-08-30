@@ -25,6 +25,16 @@ cd backend && npm install
 cd ../frontend && npm install
 ```
 
+## Authentication and registration
+
+The trading desk requires a user account before access is granted. Users can register a new desk profile or log in with an existing one. Successful authentication returns a JWT access token that is attached to protected API requests.
+
+The app stores the token in local storage and sends it via the Authorization header for calls to protected routes such as `/trades`.
+
+### Protected routes
+
+Trade operations are protected by JWT authentication. If a session expires or the token is invalid, the frontend clears the current session and prompts the user to log back in.
+
 ## 2) Start PostgreSQL with Docker
 
 From the project root:

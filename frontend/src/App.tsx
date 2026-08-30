@@ -1,19 +1,39 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import { AuthForm } from './components/AuthForm'
 import { FilterButton } from './components/FilterButton'
 import { MetricCard } from './components/MetricCard'
 import { TickerTape } from './components/TickerTape'
+import { TradeTable } from './components/TradeTable'
+import { clearAuthSession, getAuthUser, getUserDisplayName, setAuthSession } from './auth'
+import { login, register } from './api/authApi'
+import { cancelTrade, createTrade, updateTrade } from './api/tradeApi'
 import { useTrades } from './hooks/useTrades'
 import type { Trade, TradeSide, TradeStatus } from './types/trade'
 import { emptyDraft, formatCurrency, formatMetric } from './utils/trade-utils'
 
+type AuthSubmitPayload = {
+  email: string
+  password: string
+  firstName?: string
+  lastName?: string
+  traderId?: string
+  desk?: string
+}
+
 function App() {
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [currentUser, setCurrentUser] = useState(getAuthUser())
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(getAuthUser()))
+
   const {
     trades,
     setTrades,
     summary,
-    simulateFeed,
-    setSimulateFeed,
+    // simulateFeed,
+    // setSimulateFeed,
     lastUpdated,
     flashTradeId,
     flashTone,
@@ -28,6 +48,73 @@ function App() {
   const [draft, setDraft] = useState<Partial<Trade>>(emptyDraft)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+
+  useEffect(() => {
+    setCurrentUser(getAuthUser())
+    setIsAuthenticated(Boolean(getAuthUser()))
+
+    const handleSessionExpired = (event: Event) => {
+      const message = event instanceof CustomEvent ? String(event.detail ?? '') : ''
+      if (message) {
+        setAuthError(message)
+      }
+      clearAuthSession()
+      setCurrentUser(null)
+      setIsAuthenticated(false)
+    }
+
+    const pendingMessage = localStorage.getItem('trading-desk-auth-message')
+    if (pendingMessage) {
+      handleSessionExpired(new CustomEvent('session-expired', { detail: pendingMessage }))
+      localStorage.removeItem('trading-desk-auth-message')
+    }
+
+    window.addEventListener('session-expired', handleSessionExpired)
+    return () => window.removeEventListener('session-expired', handleSessionExpired)
+  }, [])
+
+  const handleAuthSubmit = async (payload: AuthSubmitPayload) => {
+    setAuthError(null)
+    setIsSubmitting(true)
+
+    try {
+      const result = authMode === 'register'
+        ? await register({
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            email: payload.email,
+            traderId: payload.traderId,
+            desk: payload.desk,
+            password: payload.password,
+          })
+        : await login({ email: payload.email, password: payload.password })
+
+      const user = {
+        id: result.user?.id ?? payload.email,
+        email: result.user?.email ?? payload.email,
+        firstName: result.user?.firstName ?? payload.firstName,
+        lastName: result.user?.lastName ?? payload.lastName,
+        traderId: result.user?.traderId ?? payload.traderId,
+        desk: result.user?.desk ?? payload.desk,
+      }
+
+      localStorage.removeItem('trading-desk-auth-message')
+      setAuthSession(result.access_token, user)
+      setCurrentUser(user)
+      setIsAuthenticated(true)
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Authentication failed')
+      setIsAuthenticated(false)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleLogout = () => {
+    clearAuthSession()
+    setCurrentUser(null)
+    setIsAuthenticated(false)
+  }
 
   const filteredTrades = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -73,7 +160,7 @@ function App() {
 
   const handleSaveTrade = async () => {
     const nextTrade: Trade = {
-      id: draft.id ?? `TRD-${Math.floor(Math.random() * 9000 + 1000)}`,
+      id: draft.id ?? '',
       symbol: String(draft.symbol ?? '').toUpperCase(),
       quantity: Number(draft.quantity ?? 0),
       price: Number(draft.price ?? 0),
@@ -88,26 +175,19 @@ function App() {
     if (isEditing) {
       setTrades((current) => current.map((trade) => (trade.id === nextTrade.id ? nextTrade : trade)))
       triggerFlash(nextTrade.id, 'amber')
-    } else {
-      setTrades((current) => [nextTrade, ...current])
-      triggerFlash(nextTrade.id, nextTrade.side === 'BUY' ? 'buy' : 'sell')
     }
 
     try {
-      const response = await fetch('/api/trades' + (isEditing ? `/${draft.id}` : ''), {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...nextTrade,
-          ...(isEditing ? {} : { id: nextTrade.id }),
-        }),
-      })
+      const { id: _, ...payloadWithoutId } = nextTrade
+      let updated: Trade
 
-      if (response.ok) {
-        const updated = (await response.json()) as Trade
+      if (isEditing) {
+        updated = await updateTrade(String(draft.id ?? ''), payloadWithoutId)
         if (updated) {
           setTrades((current) => current.map((trade) => (trade.id === updated.id ? updated : trade)))
         }
+      } else {
+        updated = await createTrade(payloadWithoutId)
       }
     } catch {
       // backend fallback path intentionally left quiet while local dev is warm
@@ -121,16 +201,45 @@ function App() {
     triggerFlash(id, 'sell')
 
     try {
-      const response = await fetch(`/api/trades/${id}/cancel`, { method: 'PATCH' })
-      if (response.ok) {
-        const updated = (await response.json()) as Trade
-        if (updated) {
-          setTrades((current) => current.map((trade) => (trade.id === updated.id ? updated : trade)))
-        }
+      const updated = await cancelTrade(id)
+      if (updated) {
+        setTrades((current) => current.map((trade) => (trade.id === updated.id ? updated : trade)))
       }
     } catch {
       // fallback for offline/local-only behavior
     }
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card panel">
+          <div className="auth-header">
+            <div className="brand-mark mono">B</div>
+            <div>
+              <div className="brand-title mono">BLOTTER</div>
+              <div className="brand-subtitle mono">TRADING DESK ACCESS</div>
+            </div>
+          </div>
+
+          <div className="auth-toggle mono">
+            <button type="button" className={authMode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>
+              LOGIN
+            </button>
+            <button type="button" className={authMode === 'register' ? 'active' : ''} onClick={() => setAuthMode('register')}>
+              REGISTER
+            </button>
+          </div>
+
+          <AuthForm
+            mode={authMode}
+            onSubmit={handleAuthSubmit}
+            isSubmitting={isSubmitting}
+            error={authError}
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -152,8 +261,11 @@ function App() {
             </div>
             <div className="clock mono">{new Date().toLocaleTimeString('en-US')}</div>
             <div className="user-badge mono">
-              <span className="user-pill">JS</span>
-              J. SMITH
+              <span className="user-pill">{getUserDisplayName(currentUser).slice(0, 2).toUpperCase()}</span>
+              <span>{getUserDisplayName(currentUser).toUpperCase()}</span>
+              <button type="button" className="logout-btn mono" onClick={handleLogout}>
+                LOGOUT
+              </button>
             </div>
           </div>
         </div>
@@ -220,10 +332,10 @@ function App() {
               />
             </label>
 
-            <label className="toggle-wrap mono">
+            {/* <label className="toggle-wrap mono">
               <input type="checkbox" checked={simulateFeed} onChange={() => setSimulateFeed((value) => !value)} />
               <span>SIMULATE FEED</span>
-            </label>
+            </label> */}
 
             <button type="button" className="primary-btn mono" onClick={openCreateForm}>
               + NEW TRADE
@@ -231,68 +343,14 @@ function App() {
           </div>
         </section>
 
-        <section className="table-panel panel">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  {['TRADE ID', 'TIME', 'SYMBOL', 'SIDE', 'QTY', 'PRICE', 'NOTIONAL', 'TRADER', 'BOOK', 'COUNTERPARTY', 'STATUS', 'ACTIONS'].map((heading) => (
-                    <th key={heading}>{heading}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTrades.map((trade) => {
-                  const isCancelled = trade.status === 'CANCELLED'
-                  const rowTone = flashTradeId === trade.id ? `flash-${flashTone ?? 'buy'}` : ''
-
-                  return (
-                    <tr key={trade.id} className={`${rowTone} ${isCancelled ? 'row-cancelled' : ''}`}>
-                      <td className="mono muted">{trade.id}</td>
-                      <td className="mono muted">{new Date(trade.tradeDate).toLocaleTimeString('en-US')}</td>
-                      <td className="symbol-cell">{trade.symbol}</td>
-                      <td>
-                        <span className={`side-badge ${trade.side === 'BUY' ? 'side-buy' : 'side-sell'}`}>
-                          {trade.side === 'BUY' ? '▲ BUY' : '▼ SELL'}
-                        </span>
-                      </td>
-                      <td className="numeric right">{formatMetric(trade.quantity)}</td>
-                      <td className="numeric right">{trade.price}</td>
-                      <td className="numeric right">{formatCurrency(trade.quantity * trade.price)}</td>
-                      <td>{trade.trader}</td>
-                      <td className="muted">{trade.book}</td>
-                      <td className="muted">{trade.counterparty}</td>
-                      <td>
-                        <span className={`status-pill ${trade.status === 'ACTIVE' ? 'status-active' : 'status-cancelled'}`}>
-                          {trade.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-group">
-                          <button type="button" className="action-btn amend-btn" onClick={() => openEditForm(trade)}>
-                            AMEND
-                          </button>
-                          <button
-                            type="button"
-                            className="action-btn cancel-btn"
-                            disabled={trade.status === 'CANCELLED'}
-                            onClick={() => handleCancelTrade(trade.id)}
-                          >
-                            CANCEL
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="table-footer mono">
-            <span>{filteredTrades.length} trades shown</span>
-            <span>SETTLEMENT: T+1 • DESK: EQUITIES_US/UK</span>
-          </div>
+        <section>
+          <TradeTable
+            trades={filteredTrades}
+            flashTradeId={flashTradeId}
+            flashTone={flashTone}
+            onAmend={openEditForm}
+            onCancel={handleCancelTrade}
+          />
         </section>
       </main>
 
@@ -369,7 +427,7 @@ function App() {
             <input
               value={draft.trader ?? ''}
               onChange={(event) => setDraft((current) => ({ ...current, trader: event.target.value }))}
-              placeholder="JSMITH"
+              placeholder="CYRUS"
             />
           </label>
 

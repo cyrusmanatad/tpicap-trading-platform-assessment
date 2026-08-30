@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { getTrades, updateTrade as updateTradeApi } from '../api/tradeApi';
 import type { Tone, Trade, TradeStatus } from '../types/trade';
 import { emptyDraft, normalizeTrade } from '../utils/trade-utils';
-
-const apiBaseUrl = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
 export function useTrades() {
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -26,12 +25,7 @@ export function useTrades() {
   useEffect(() => {
     const loadTrades = async () => {
       try {
-        const response = await fetch(`${apiBaseUrl}/api/trades`);
-        if (!response.ok) {
-          return;
-        }
-
-        const data: Trade[] = await response.json();
+        const data = await getTrades();
         if (Array.isArray(data)) {
           setTrades(data.map((trade) => normalizeTrade(trade)));
         }
@@ -134,18 +128,7 @@ export function useTrades() {
       status: trade.status,
     };
 
-    const response = await fetch(`${apiBaseUrl}/api/trades/${trade.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const message = await response.text();
-      throw new Error(`Update trade failed: ${message}`);
-    }
-
-    const updatedTrade = await response.json();
+    const updatedTrade = await updateTradeApi(trade.id, payload);
 
     setTrades((current) =>
       current.map((item) => (item.id === updatedTrade.id ? updatedTrade : item)),

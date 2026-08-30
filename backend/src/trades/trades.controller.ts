@@ -7,9 +7,11 @@ import {
   Patch,
   Post,
   Put,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateTradeDto } from './dto/create-trade.dto.js';
 import { TradeGateway } from './trade-gateway.js';
 import type { Trade } from './trade.entity.js';
@@ -17,6 +19,7 @@ import { TradesService } from './trades.service.js';
 import { UpdateTradeDto } from './dto/update-trade.dto.js';
 
 @Controller('trades')
+@UseGuards(JwtAuthGuard)
 export class TradesController {
   constructor(
     private readonly tradesService: TradesService,
