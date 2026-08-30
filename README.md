@@ -85,6 +85,10 @@ This starts:
 - Frontend on port 5173
 - Nginx on port 81
 
+Access the application on:
+
+- http://localhost:81
+
 ## 6) Run tests
 
 Backend tests:
