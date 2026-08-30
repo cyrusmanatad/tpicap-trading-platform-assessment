@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import './App.css'
 import { AuthForm } from './components/AuthForm'
 import { FilterButton } from './components/FilterButton'
@@ -9,6 +11,7 @@ import { clearAuthSession, getAuthUser, getUserDisplayName, setAuthSession } fro
 import { login, register } from './api/authApi'
 import { cancelTrade, createTrade, updateTrade } from './api/tradeApi'
 import { useTrades } from './hooks/useTrades'
+import { tradeFormDefaults, tradeFormSchema, type TradeFormValues } from './schemas/trade'
 import type { Trade, TradeSide, TradeStatus } from './types/trade'
 import { emptyDraft, formatCurrency, formatMetric } from './utils/trade-utils'
 
@@ -48,6 +51,15 @@ function App() {
   const [draft, setDraft] = useState<Partial<Trade>>(emptyDraft)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const tradeForm = useForm<TradeFormValues>({
+    resolver: zodResolver(tradeFormSchema),
+    mode: 'onChange',
+    defaultValues: tradeFormDefaults,
+  })
+
+  const handleTradeSubmit = async (values: TradeFormValues) => {
+    await handleSaveTrade(values)
+  }
 
   useEffect(() => {
     setCurrentUser(getAuthUser())
@@ -148,28 +160,40 @@ function App() {
 
   const openCreateForm = () => {
     setDraft({ ...emptyDraft, tradeDate: new Date().toISOString() })
+    tradeForm.reset({ ...tradeFormDefaults, tradeDate: new Date().toISOString() })
     setIsEditing(false)
     setIsFormOpen(true)
   }
 
   const openEditForm = (trade: Trade) => {
     setDraft({ ...trade })
+    tradeForm.reset({
+      symbol: trade.symbol,
+      side: trade.side,
+      status: trade.status,
+      quantity: Number(trade.quantity),
+      price: Number(trade.price),
+      trader: trade.trader,
+      book: trade.book,
+      counterparty: trade.counterparty,
+      tradeDate: trade.tradeDate,
+    })
     setIsEditing(true)
     setIsFormOpen(true)
   }
 
-  const handleSaveTrade = async () => {
+  const handleSaveTrade = async (values: TradeFormValues) => {
     const nextTrade: Trade = {
       id: draft.id ?? '',
-      symbol: String(draft.symbol ?? '').toUpperCase(),
-      quantity: Number(draft.quantity ?? 0),
-      price: Number(draft.price ?? 0),
-      side: (draft.side ?? 'BUY') as TradeSide,
-      trader: String(draft.trader ?? 'Unassigned').toUpperCase(),
-      book: String(draft.book ?? 'EQ-NA').toUpperCase(),
-      counterparty: String(draft.counterparty ?? 'Unknown'),
-      tradeDate: draft.tradeDate ?? new Date().toISOString(),
-      status: (draft.status ?? 'ACTIVE') as TradeStatus,
+      symbol: values.symbol.toUpperCase(),
+      quantity: Number(values.quantity),
+      price: Number(values.price),
+      side: values.side,
+      trader: values.trader.toUpperCase(),
+      book: values.book.toUpperCase(),
+      counterparty: values.counterparty,
+      tradeDate: new Date(values.tradeDate).toISOString(),
+      status: values.status,
     }
 
     if (isEditing) {
@@ -365,37 +389,39 @@ function App() {
           </button>
         </div>
 
-        <div className="drawer-form">
+        <form className="drawer-form" onSubmit={tradeForm.handleSubmit(handleTradeSubmit)} noValidate>
           <label className="field mono">
             <span>SYMBOL *</span>
             <input
-              value={draft.symbol ?? ''}
-              onChange={(event) => setDraft((current) => ({ ...current, symbol: event.target.value }))}
+              {...tradeForm.register('symbol')}
               placeholder="AAPL"
             />
+            {tradeForm.formState.errors.symbol ? (
+              <small className="field-error">{tradeForm.formState.errors.symbol.message}</small>
+            ) : null}
           </label>
 
           <div className="field-row">
             <label className="field mono">
               <span>SIDE *</span>
-              <select
-                value={draft.side ?? 'BUY'}
-                onChange={(event) => setDraft((current) => ({ ...current, side: event.target.value as TradeSide }))}
-              >
+              <select {...tradeForm.register('side')}>
                 <option value="BUY">BUY</option>
                 <option value="SELL">SELL</option>
               </select>
+              {tradeForm.formState.errors.side ? (
+                <small className="field-error">{tradeForm.formState.errors.side.message}</small>
+              ) : null}
             </label>
 
             <label className="field mono">
               <span>STATUS</span>
-              <select
-                value={draft.status ?? 'ACTIVE'}
-                onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as TradeStatus }))}
-              >
+              <select {...tradeForm.register('status')}>
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="CANCELLED">CANCELLED</option>
               </select>
+              {tradeForm.formState.errors.status ? (
+                <small className="field-error">{tradeForm.formState.errors.status.message}</small>
+              ) : null}
             </label>
           </div>
 
@@ -405,9 +431,11 @@ function App() {
               <input
                 type="number"
                 min="1"
-                value={draft.quantity ?? 0}
-                onChange={(event) => setDraft((current) => ({ ...current, quantity: Number(event.target.value) }))}
+                {...tradeForm.register('quantity', { valueAsNumber: true })}
               />
+              {tradeForm.formState.errors.quantity ? (
+                <small className="field-error">{tradeForm.formState.errors.quantity.message}</small>
+              ) : null}
             </label>
 
             <label className="field mono">
@@ -416,38 +444,37 @@ function App() {
                 type="number"
                 min="0.01"
                 step="0.01"
-                value={draft.price ?? 0}
-                onChange={(event) => setDraft((current) => ({ ...current, price: Number(event.target.value) }))}
+                {...tradeForm.register('price', { valueAsNumber: true })}
               />
+              {tradeForm.formState.errors.price ? (
+                <small className="field-error">{tradeForm.formState.errors.price.message}</small>
+              ) : null}
             </label>
           </div>
 
           <label className="field mono">
             <span>TRADER *</span>
-            <input
-              value={draft.trader ?? ''}
-              onChange={(event) => setDraft((current) => ({ ...current, trader: event.target.value }))}
-              placeholder="CYRUS"
-            />
+            <input {...tradeForm.register('trader')} placeholder="CYRUS" />
+            {tradeForm.formState.errors.trader ? (
+              <small className="field-error">{tradeForm.formState.errors.trader.message}</small>
+            ) : null}
           </label>
 
           <div className="field-row">
             <label className="field mono">
               <span>BOOK</span>
-              <input
-                value={draft.book ?? 'EQ-NA'}
-                onChange={(event) => setDraft((current) => ({ ...current, book: event.target.value }))}
-                placeholder="EQUITIES_US"
-              />
+              <input {...tradeForm.register('book')} placeholder="EQUITIES_US" />
+              {tradeForm.formState.errors.book ? (
+                <small className="field-error">{tradeForm.formState.errors.book.message}</small>
+              ) : null}
             </label>
 
             <label className="field mono">
               <span>COUNTERPARTY</span>
-              <input
-                value={draft.counterparty ?? ''}
-                onChange={(event) => setDraft((current) => ({ ...current, counterparty: event.target.value }))}
-                placeholder="Goldman Sachs"
-              />
+              <input {...tradeForm.register('counterparty')} placeholder="Goldman Sachs" />
+              {tradeForm.formState.errors.counterparty ? (
+                <small className="field-error">{tradeForm.formState.errors.counterparty.message}</small>
+              ) : null}
             </label>
           </div>
 
@@ -455,25 +482,24 @@ function App() {
             <span>TRADE DATE / TIME</span>
             <input
               type="datetime-local"
-              value={new Date(draft.tradeDate ?? new Date().toISOString()).toISOString().slice(0, 16)}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  tradeDate: new Date(event.target.value).toISOString(),
-                }))
-              }
+              {...tradeForm.register('tradeDate', {
+                setValueAs: (value) => (value ? new Date(value).toISOString() : value),
+              })}
             />
+            {tradeForm.formState.errors.tradeDate ? (
+              <small className="field-error">{tradeForm.formState.errors.tradeDate.message}</small>
+            ) : null}
           </label>
-        </div>
 
-        <div className="drawer-actions">
-          <button type="button" className="secondary-btn mono" onClick={() => setIsFormOpen(false)}>
-            DISCARD
-          </button>
-          <button type="button" className="primary-btn mono" onClick={handleSaveTrade}>
-            {isEditing ? 'SAVE AMENDMENT' : 'BOOK TRADE'}
-          </button>
-        </div>
+          <div className="drawer-actions">
+            <button type="button" className="secondary-btn mono" onClick={() => setIsFormOpen(false)}>
+              DISCARD
+            </button>
+            <button type="submit" className="primary-btn mono" disabled={tradeForm.formState.isSubmitting}>
+              {isEditing ? 'SAVE AMENDMENT' : 'BOOK TRADE'}
+            </button>
+          </div>
+        </form>
       </aside>
     </div>
   )
