@@ -87,7 +87,7 @@ This starts:
 
 Access the application on:
 
-- http://localhost:81
+- http://trading.localhost:8080
 
 ## 6) Run tests
 
