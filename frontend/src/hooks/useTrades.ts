@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { getTrades, updateTrade as updateTradeApi } from '../api/tradeApi';
+import { getTrades, getTradeSummary, updateTrade as updateTradeApi, type TradeQueryParams, type TradeSummary } from '../api/tradeApi';
 import type { Tone, Trade, TradeStatus } from '../types/trade';
 import { emptyDraft, normalizeTrade } from '../utils/trade-utils';
 
@@ -11,6 +11,33 @@ export function useTrades() {
   const [flashTradeId, setFlashTradeId] = useState<string | null>(null);
   const [flashTone, setFlashTone] = useState<Tone | null>(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [pageMeta, setPageMeta] = useState({ total: 0, limit: 10, offset: 0 });
+  const [summary, setSummary] = useState<TradeSummary>({
+    total: 0,
+    notional: 0,
+    active: 0,
+    cancelled: 0,
+    buyVolume: 0,
+    sellVolume: 0,
+  });
+
+  const fetchTrades = useCallback(async (params: TradeQueryParams = {}) => {
+    try {
+      const [page, summaryData] = await Promise.all([
+        getTrades(params),
+        getTradeSummary(params),
+      ]);
+      if (page && Array.isArray(page.items)) {
+        setTrades(page.items.map((trade) => normalizeTrade(trade)));
+        setPageMeta({ total: page.total ?? 0, limit: page.limit ?? 10, offset: page.offset ?? 0 });
+      }
+      if (summaryData) {
+        setSummary(summaryData);
+      }
+    } catch {
+      // backend is the source of truth; state remains as-is until the API responds
+    }
+  }, []);
 
   const triggerFlash = (tradeId: string, tone: Tone) => {
     setFlashTradeId(tradeId);
@@ -23,19 +50,8 @@ export function useTrades() {
   };
 
   useEffect(() => {
-    const loadTrades = async () => {
-      try {
-        const data = await getTrades();
-        if (Array.isArray(data)) {
-          setTrades(data.map((trade) => normalizeTrade(trade)));
-        }
-      } catch {
-        // backend is the source of truth; state remains empty until the API responds
-      }
-    };
-
-    void loadTrades();
-  }, []);
+    void fetchTrades();
+  }, [fetchTrades]);
 
   useEffect(() => {
     const socket: Socket = io(undefined, {
@@ -138,26 +154,7 @@ export function useTrades() {
     return updatedTrade;
   };
 
-  const summary = useMemo(() => {
-    const notional = trades.reduce((total, trade) => total + trade.quantity * trade.price, 0);
-    const buyVolume = trades
-      .filter((trade) => trade.side === 'BUY' && trade.status === 'ACTIVE')
-      .reduce((total, trade) => total + trade.quantity, 0);
-    const sellVolume = trades
-      .filter((trade) => trade.side === 'SELL' && trade.status === 'ACTIVE')
-      .reduce((total, trade) => total + trade.quantity, 0);
-    const active = trades.filter((trade) => trade.status === 'ACTIVE').length;
-    const cancelled = trades.filter((trade) => trade.status === 'CANCELLED').length;
 
-    return {
-      total: trades.length,
-      notional,
-      active,
-      cancelled,
-      buyVolume,
-      sellVolume,
-    };
-  }, [trades]);
 
   return {
     trades,
@@ -172,5 +169,7 @@ export function useTrades() {
     triggerFlash,
     emptyDraft,
     updateTrade,
+    fetchTrades,
+    pageMeta,
   };
 }

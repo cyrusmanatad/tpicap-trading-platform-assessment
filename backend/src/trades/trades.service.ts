@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { CreateTradeDto } from './dto/create-trade.dto.js';
+import { FindTradesQueryDto } from './dto/find-trades-query.dto.js';
 import { Trade } from './trade.entity.js';
 import { UpdateTradeDto } from './dto/update-trade.dto.js';
 
@@ -42,18 +43,99 @@ export class TradesService {
     private readonly tradeRepository: Repository<Trade>,
   ) {}
 
-  async findAll(): Promise<Trade[]> {
-    return this.tradeRepository.find({
-      order: {
-        tradeDate: 'DESC',
-      },
-    });
+  private buildFilterQuery(query: FindTradesQueryDto = {}): SelectQueryBuilder<Trade> {
+    const qb = this.tradeRepository.createQueryBuilder('trade');
+    const search = query.search?.trim().toLowerCase();
+
+    if (search) {
+      qb.andWhere(
+        `(
+          LOWER(trade.symbol) LIKE :search OR
+          LOWER(trade.trader) LIKE :search OR
+          LOWER(trade.counterparty) LIKE :search OR
+          CAST(trade.id AS TEXT) LIKE :search OR
+          LOWER(CAST(trade.trade_uuid AS TEXT)) LIKE :search
+        )`,
+        { search: `%${search}%` },
+      );
+    }
+
+    if (query.side) {
+      qb.andWhere('trade.side = :side', { side: query.side });
+    }
+
+    if (query.status) {
+      qb.andWhere('trade.status = :status', { status: query.status });
+    }
+
+    return qb;
+  }
+
+  async findAll(query: FindTradesQueryDto = {}): Promise<{ items: Trade[]; total: number; limit: number; offset: number }> {
+    const qb = this.buildFilterQuery(query);
+    const limit = Math.min(query.limit ?? 20, 100);
+    const offset = Math.max(query.offset ?? 0, 0);
+    const sort = query.sort ?? 'timestamp';
+
+    switch (sort) {
+      case 'symbol':
+        qb.orderBy('LOWER(trade.symbol)', 'ASC');
+        qb.addOrderBy('trade.tradeDate', 'DESC');
+        break;
+      case 'notional':
+        qb.orderBy('(trade.quantity * trade.price)', 'DESC');
+        qb.addOrderBy('trade.tradeDate', 'DESC');
+        break;
+      case 'timestamp':
+      default:
+        qb.orderBy('trade.tradeDate', 'DESC');
+        break;
+    }
+
+    qb.limit(limit).offset(offset);
+
+    const [items, total] = await qb.getManyAndCount();
+    return { items, total, limit, offset };
+  }
+
+  async getSummary(query: FindTradesQueryDto = {}): Promise<{
+    total: number;
+    notional: number;
+    active: number;
+    cancelled: number;
+    buyVolume: number;
+    sellVolume: number;
+  }> {
+    const trades = await this.buildFilterQuery(query).getMany();
+
+    const notional = trades.reduce((sum, trade) => sum + (trade.quantity ?? 0) * (trade.price ?? 0), 0);
+    const buyVolume = trades
+      .filter((trade) => trade.side === 'BUY' && trade.status === 'ACTIVE')
+      .reduce((sum, trade) => sum + (trade.quantity ?? 0), 0);
+    const sellVolume = trades
+      .filter((trade) => trade.side === 'SELL' && trade.status === 'ACTIVE')
+      .reduce((sum, trade) => sum + (trade.quantity ?? 0), 0);
+    const active = trades.filter((trade) => trade.status === 'ACTIVE').length;
+    const cancelled = trades.filter((trade) => trade.status === 'CANCELLED').length;
+
+    return {
+      total: trades.length,
+      notional,
+      active,
+      cancelled,
+      buyVolume,
+      sellVolume,
+    };
   }
 
   async seedIfEmpty(): Promise<Trade[]> {
     const count = await this.tradeRepository.count();
     if (count > 0) {
-      return this.findAll();
+      return this.tradeRepository.find({
+        order: {
+          tradeDate: 'DESC',
+        },
+      });
     }
 
     this.logger.log('Seeding initial trade data');

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import './App.css'
@@ -42,12 +42,16 @@ function App() {
     flashTone,
     isSocketConnected,
     triggerFlash,
+    fetchTrades,
+    pageMeta,
   } = useTrades()
 
   const [search, setSearch] = useState('')
   const [sideFilter, setSideFilter] = useState<'ALL' | TradeSide>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | TradeStatus>('ALL')
   const [sortKey, setSortKey] = useState<'timestamp' | 'symbol' | 'notional'>('timestamp')
+  const [pageIndex, setPageIndex] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
   const [draft, setDraft] = useState<Partial<Trade>>(emptyDraft)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -128,35 +132,24 @@ function App() {
     setIsAuthenticated(false)
   }
 
-  const filteredTrades = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase()
+  useEffect(() => {
+    setPageIndex(0)
+  }, [search, sideFilter, statusFilter, sortKey])
 
-    return [...trades]
-      .filter((trade) => {
-        const matchesSearch =
-          normalizedSearch.length === 0 ||
-          trade.symbol.toLowerCase().includes(normalizedSearch) ||
-          trade.counterparty.toLowerCase().includes(normalizedSearch) ||
-          trade.trader.toLowerCase().includes(normalizedSearch) ||
-          trade.id.toLowerCase().includes(normalizedSearch)
-
-        const matchesSide = sideFilter === 'ALL' || trade.side === sideFilter
-        const matchesStatus = statusFilter === 'ALL' || trade.status === statusFilter
-
-        return matchesSearch && matchesSide && matchesStatus
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchTrades({
+        search: search.trim() || undefined,
+        side: sideFilter === 'ALL' ? undefined : sideFilter,
+        status: statusFilter === 'ALL' ? undefined : statusFilter,
+        sort: sortKey,
+        limit: pageSize,
+        offset: pageIndex * pageSize,
       })
-      .sort((a, b) => {
-        if (sortKey === 'symbol') {
-          return a.symbol.localeCompare(b.symbol) || b.tradeDate.localeCompare(a.tradeDate)
-        }
+    }, 250)
 
-        if (sortKey === 'notional') {
-          return b.quantity * b.price - a.quantity * a.price
-        }
-
-        return new Date(b.tradeDate).getTime() - new Date(a.tradeDate).getTime()
-      })
-  }, [search, sideFilter, statusFilter, sortKey, trades])
+    return () => window.clearTimeout(timer)
+  }, [search, sideFilter, statusFilter, sortKey, pageIndex, pageSize, fetchTrades])
 
   const openCreateForm = () => {
     setDraft({ ...emptyDraft, tradeDate: new Date().toISOString() })
@@ -345,6 +338,20 @@ function App() {
                 <option value="symbol">SYMBOL</option>
               </select>
             </label>
+
+            <label className="sort-wrap mono">
+              <span>PAGE SIZE</span>
+              <select
+                aria-label="Page size"
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </label>
           </div>
 
           <div className="toolbar-row toolbar-secondary">
@@ -369,11 +376,15 @@ function App() {
 
         <section>
           <TradeTable
-            trades={filteredTrades}
+            trades={trades}
             flashTradeId={flashTradeId}
             flashTone={flashTone}
             onAmend={openEditForm}
             onCancel={handleCancelTrade}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalCount={pageMeta.total}
+            onPageChange={setPageIndex}
           />
         </section>
       </main>
