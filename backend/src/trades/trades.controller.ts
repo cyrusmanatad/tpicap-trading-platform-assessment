@@ -7,12 +7,14 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateTradeDto } from './dto/create-trade.dto.js';
+import { FindTradesQueryDto } from './dto/find-trades-query.dto.js';
 import { TradeGateway } from './trade-gateway.js';
 import type { Trade } from './trade.entity.js';
 import { TradesService } from './trades.service.js';
@@ -27,8 +29,26 @@ export class TradesController {
   ) {}
 
   @Get()
-  findAll(): Promise<Trade[]> {
-    return this.tradesService.findAll();
+  findAll(
+    @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
+    query: FindTradesQueryDto,
+  ): Promise<{ items: Trade[]; total: number; limit: number; offset: number }> {
+    return this.tradesService.findAll(query);
+  }
+
+  @Get('summary')
+  getSummary(
+    @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
+    query: FindTradesQueryDto,
+  ): Promise<{
+    total: number;
+    notional: number;
+    active: number;
+    cancelled: number;
+    buyVolume: number;
+    sellVolume: number;
+  }> {
+    return this.tradesService.getSummary(query);
   }
 
   @Post()

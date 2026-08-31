@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { RateLimitGuard } from './common/rate-limit.guard.js';
 import typeormConfig from './config/typeorm.config.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -32,6 +34,12 @@ import { TradesModule } from './trades/trades.module.js';
     TradesModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
+  ],
 })
 export class AppModule {}

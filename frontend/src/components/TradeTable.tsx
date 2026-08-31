@@ -1,11 +1,3 @@
-import { useState } from 'react';
-import {
-  createColumnHelper,
-  createPaginatedRowModel,
-  rowPaginationFeature,
-  tableFeatures,
-  useTable,
-} from '@tanstack/react-table';
 import type { Trade } from '../types/trade';
 import { formatCurrency, formatMetric } from '../utils/trade-utils';
 
@@ -15,131 +7,88 @@ interface TradeTableProps {
   flashTone: 'buy' | 'sell' | 'amber' | null;
   onAmend: (trade: Trade) => void;
   onCancel: (id: string) => void;
+  pageIndex: number;
+  pageSize: number;
+  totalCount: number;
+  onPageChange: (pageIndex: number) => void;
 }
 
-const features = tableFeatures({
-  rowPaginationFeature,
-  paginatedRowModel: createPaginatedRowModel(),
-});
-const columnHelper = createColumnHelper<typeof features, Trade>();
-
-export function TradeTable({ trades, flashTradeId, flashTone, onAmend, onCancel }: TradeTableProps) {
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-
-  const columns = columnHelper.columns([
-    columnHelper.accessor('id', {
-      header: 'TRADE ID',
-      cell: (info) => <span className="mono muted">{info.getValue()}</span>,
-    }),
-    columnHelper.accessor('tradeDate', {
-      header: 'TIME',
-      cell: (info) => <span className="mono muted">{new Date(info.getValue()).toLocaleTimeString('en-US')}</span>,
-    }),
-    columnHelper.accessor('symbol', {
-      header: 'SYMBOL',
-      cell: (info) => <span className="symbol-cell">{info.getValue()}</span>,
-    }),
-    columnHelper.accessor('side', {
-      header: 'SIDE',
-      cell: (info) => (
-        <span className={`side-badge ${info.getValue() === 'BUY' ? 'side-buy' : 'side-sell'}`}>
-          {info.getValue() === 'BUY' ? '▲ BUY' : '▼ SELL'}
-        </span>
-      ),
-    }),
-    columnHelper.accessor('quantity', {
-      header: 'QTY',
-      cell: (info) => <span className="numeric right">{formatMetric(info.getValue())}</span>,
-    }),
-    columnHelper.accessor('price', {
-      header: 'PRICE',
-      cell: (info) => <span className="numeric right">{info.getValue()}</span>,
-    }),
-    columnHelper.display({
-      id: 'notional',
-      header: 'NOTIONAL',
-      cell: ({ row }) => <span className="numeric right">{formatCurrency(row.original.quantity * row.original.price)}</span>,
-    }),
-    columnHelper.accessor('trader', {
-      header: 'TRADER',
-      cell: (info) => info.getValue(),
-    }),
-    columnHelper.accessor('book', {
-      header: 'BOOK',
-      cell: (info) => <span className="muted">{info.getValue()}</span>,
-    }),
-    columnHelper.accessor('counterparty', {
-      header: 'COUNTERPARTY',
-      cell: (info) => <span className="muted">{info.getValue()}</span>,
-    }),
-    columnHelper.accessor('status', {
-      header: 'STATUS',
-      cell: (info) => (
-        <span className={`status-pill ${info.getValue() === 'ACTIVE' ? 'status-active' : 'status-cancelled'}`}>
-          {info.getValue()}
-        </span>
-      ),
-    }),
-    columnHelper.display({
-      id: 'actions',
-      header: 'ACTIONS',
-      cell: ({ row }) => (
-        <div className="action-group">
-          <button type="button" className="action-btn amend-btn" onClick={() => onAmend(row.original)}>
-            AMEND
-          </button>
-          <button
-            type="button"
-            className="action-btn cancel-btn"
-            disabled={row.original.status === 'CANCELLED'}
-            onClick={() => onCancel(row.original.id)}
-          >
-            CANCEL
-          </button>
-        </div>
-      ),
-    }),
-  ]);
-
-  const table = useTable({
-    features,
-    columns,
-    data: trades,
-    state: { pagination },
-    onPaginationChange: setPagination,
-  });
-
-  const pageCount = table.getPageCount();
-  const currentPage = pagination.pageIndex + 1;
+export function TradeTable({
+  trades,
+  flashTradeId,
+  flashTone,
+  onAmend,
+  onCancel,
+  pageIndex,
+  pageSize,
+  totalCount,
+  onPageChange,
+}: TradeTableProps) {
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  const currentPage = Math.min(pageIndex + 1, pageCount);
 
   return (
     <div className="table-panel panel">
       <div className="table-scroll">
         <table>
           <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th key={header.id}>
-                    {header.isPlaceholder ? null : <table.FlexRender header={header} />}
-                  </th>
-                ))}
-              </tr>
-            ))}
+            <tr>
+              <th>TRADE ID</th>
+              <th>TIME</th>
+              <th>SYMBOL</th>
+              <th>SIDE</th>
+              <th>QTY</th>
+              <th>PRICE</th>
+              <th>NOTIONAL</th>
+              <th>TRADER</th>
+              <th>BOOK</th>
+              <th>COUNTERPARTY</th>
+              <th>STATUS</th>
+              <th>ACTIONS</th>
+            </tr>
           </thead>
 
           <tbody>
-            {table.getRowModel().rows.map((row) => {
-              const isCancelled = row.original.status === 'CANCELLED';
-              const rowTone = flashTradeId === row.original.id ? `flash-${flashTone ?? 'buy'}` : '';
+            {trades.map((trade) => {
+              const isCancelled = trade.status === 'CANCELLED';
+              const rowTone = flashTradeId === trade.id ? `flash-${flashTone ?? 'buy'}` : '';
 
               return (
-                <tr key={row.id} className={`${rowTone} ${isCancelled ? 'row-cancelled' : ''}`}>
-                  {row.getAllCells().map((cell) => (
-                    <td key={cell.id}>
-                      <table.FlexRender cell={cell} />
-                    </td>
-                  ))}
+                <tr key={trade.id} className={`${rowTone} ${isCancelled ? 'row-cancelled' : ''}`}>
+                  <td><span className="mono muted">{trade.id}</span></td>
+                  <td><span className="mono muted">{new Date(trade.tradeDate).toLocaleTimeString('en-US')}</span></td>
+                  <td><span className="symbol-cell">{trade.symbol}</span></td>
+                  <td>
+                    <span className={`side-badge ${trade.side === 'BUY' ? 'side-buy' : 'side-sell'}`}>
+                      {trade.side === 'BUY' ? '▲ BUY' : '▼ SELL'}
+                    </span>
+                  </td>
+                  <td><span className="numeric right">{formatMetric(trade.quantity)}</span></td>
+                  <td><span className="numeric right">{trade.price}</span></td>
+                  <td><span className="numeric right">{formatCurrency(trade.quantity * trade.price)}</span></td>
+                  <td>{trade.trader}</td>
+                  <td><span className="muted">{trade.book}</span></td>
+                  <td><span className="muted">{trade.counterparty}</span></td>
+                  <td>
+                    <span className={`status-pill ${trade.status === 'ACTIVE' ? 'status-active' : 'status-cancelled'}`}>
+                      {trade.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="action-group">
+                      <button type="button" className="action-btn amend-btn" onClick={() => onAmend(trade)}>
+                        AMEND
+                      </button>
+                      <button
+                        type="button"
+                        className="action-btn cancel-btn"
+                        disabled={trade.status === 'CANCELLED'}
+                        onClick={() => onCancel(trade.id)}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -149,13 +98,23 @@ export function TradeTable({ trades, flashTradeId, flashTone, onAmend, onCancel 
 
       <div className="table-footer mono">
         <span>
-          {trades.length} trades shown • page {currentPage} / {pageCount || 1}
+          {totalCount} trades total • page {currentPage} / {pageCount}
         </span>
         <div className="table-pagination">
-          <button type="button" className="pagination-btn" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+          <button
+            type="button"
+            className="pagination-btn"
+            onClick={() => onPageChange(Math.max(0, pageIndex - 1))}
+            disabled={pageIndex === 0}
+          >
             PREV
           </button>
-          <button type="button" className="pagination-btn" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          <button
+            type="button"
+            className="pagination-btn"
+            onClick={() => onPageChange(Math.min(pageCount - 1, pageIndex + 1))}
+            disabled={pageIndex >= pageCount - 1}
+          >
             NEXT
           </button>
         </div>
