@@ -44,7 +44,7 @@ function App() {
     isSocketConnected,
     triggerFlash,
     fetchTrades,
-    isLoading,
+    // isLoading,
     pageMeta,
   } = useTrades()
   
@@ -141,6 +141,9 @@ function App() {
   }, [search, sideFilter, statusFilter, sortKey])
 
   useEffect(() => {
+
+    if(!isAuthenticated) return;
+
     void fetchTrades({
       search: debouncedSearch.trim() || undefined,
       side: sideFilter === 'ALL' ? undefined : sideFilter,
@@ -149,7 +152,7 @@ function App() {
       limit: pageSize,
       offset: pageIndex * pageSize,
     })
-  }, [debouncedSearch, sideFilter, statusFilter, sortKey, pageIndex, pageSize, fetchTrades])
+  }, [isAuthenticated, debouncedSearch, sideFilter, statusFilter, sortKey, pageIndex, pageSize, fetchTrades])
 
   const openCreateForm = () => {
     setDraft({ ...emptyDraft, tradeDate: new Date().toISOString() })
