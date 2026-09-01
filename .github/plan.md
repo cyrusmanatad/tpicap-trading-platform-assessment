@@ -172,3 +172,10 @@ Build a full-stack trading desk application with a dark terminal-style front end
 
 ## Summary
 The project goal is a polished, secure, realtime trading desk that feels like a modern equities terminal while staying practical and production-ready. The work is organized around four pillars: secure auth, real persistence, live market updates, and terminal-grade UX fidelity.
+
+### Workstream G — Client-side search debounce & cancellation
+- Goal: prevent rate-limiting and stale results when users type quickly in the trade search.
+- Quick step: add `frontend/src/hooks/useDebounce.ts` and use `useDebounce(search, 250)` in `frontend/src/App.tsx` to trigger `fetchTrades` only after the debounced value changes.
+- Robust step: enhance `frontend/src/hooks/useTrades.ts` to abort in-flight fetches using `AbortController` and pass `signal` into `tradeApi` requests so paired requests (trades + summary) cancel together.
+- Verification: rapid typing should issue requests only after debounce delay and canceled requests must not update UI out-of-order.
+- Default debounce: 250ms (configurable).
