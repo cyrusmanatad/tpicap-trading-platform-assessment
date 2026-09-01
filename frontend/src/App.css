@@ -817,6 +817,7 @@
 }
 
 .drawer-header,
+
 .drawer-actions {
   display: flex;
   align-items: center;

@@ -26,7 +26,7 @@ export type TradeSummary = {
   sellVolume: number;
 };
 
-export async function getTrades(params: TradeQueryParams = {}): Promise<TradePage> {
+export async function getTrades(params: TradeQueryParams = {}, config: Record<string, any> = {}): Promise<TradePage> {
   const { data } = await api.get<TradePage>('/trades', {
     params: {
       ...params,
@@ -35,17 +35,19 @@ export async function getTrades(params: TradeQueryParams = {}): Promise<TradePag
       limit: params.limit ?? 10,
       offset: params.offset ?? 0,
     },
+    ...config,
   });
   return data;
 }
 
-export async function getTradeSummary(params: TradeQueryParams = {}): Promise<TradeSummary> {
+export async function getTradeSummary(params: TradeQueryParams = {}, config: Record<string, any> = {}): Promise<TradeSummary> {
   const { data } = await api.get<TradeSummary>('/trades/summary', {
     params: {
       search: params.search,
       side: params.side === 'ALL' ? undefined : params.side,
       status: params.status === 'ALL' ? undefined : params.status,
     },
+    ...config,
   });
   return data;
 }

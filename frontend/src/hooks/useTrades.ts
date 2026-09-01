@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getTrades, getTradeSummary, updateTrade as updateTradeApi, type TradeQueryParams, type TradeSummary } from '../api/tradeApi';
 import type { Tone, Trade, TradeStatus } from '../types/trade';
@@ -20,13 +20,30 @@ export function useTrades() {
     buyVolume: 0,
     sellVolume: 0,
   });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchTrades = useCallback(async (params: TradeQueryParams = {}) => {
+    // Abort previous request if any
     try {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    } catch {
+      // ignore
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      setIsLoading(true);
       const [page, summaryData] = await Promise.all([
-        getTrades(params),
-        getTradeSummary(params),
+        getTrades(params, { signal: controller.signal }),
+        getTradeSummary(params, { signal: controller.signal }),
       ]);
+
       if (page && Array.isArray(page.items)) {
         setTrades(page.items.map((trade) => normalizeTrade(trade)));
         setPageMeta({ total: page.total ?? 0, limit: page.limit ?? 10, offset: page.offset ?? 0 });
@@ -34,8 +51,15 @@ export function useTrades() {
       if (summaryData) {
         setSummary(summaryData);
       }
-    } catch {
-      // backend is the source of truth; state remains as-is until the API responds
+    } catch (err: unknown) {
+      // Ignore abort/cancel errors, otherwise keep state unchanged
+      // Axios throws a CanceledError when request is aborted; just swallow it
+    } finally {
+      setIsLoading(false);
+      // Clear controller if it's the same one
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   }, []);
 
@@ -170,6 +194,7 @@ export function useTrades() {
     emptyDraft,
     updateTrade,
     fetchTrades,
+    isLoading,
     pageMeta,
   };
 }

@@ -11,6 +11,7 @@ import { clearAuthSession, getAuthUser, getUserDisplayName, setAuthSession } fro
 import { login, register } from './api/authApi'
 import { cancelTrade, createTrade, updateTrade } from './api/tradeApi'
 import { useTrades } from './hooks/useTrades'
+import useDebounce from './hooks/useDebounce'
 import { tradeFormDefaults, tradeFormSchema, type TradeFormValues } from './schemas/trade'
 import type { Trade, TradeSide, TradeStatus } from './types/trade'
 import { emptyDraft, formatCurrency, formatMetric } from './utils/trade-utils'
@@ -43,8 +44,10 @@ function App() {
     isSocketConnected,
     triggerFlash,
     fetchTrades,
+    isLoading,
     pageMeta,
   } = useTrades()
+  
 
   const [search, setSearch] = useState('')
   const [sideFilter, setSideFilter] = useState<'ALL' | TradeSide>('ALL')
@@ -52,6 +55,7 @@ function App() {
   const [sortKey, setSortKey] = useState<'timestamp' | 'symbol' | 'notional'>('timestamp')
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(10)
+  const debouncedSearch = useDebounce(search, 500)
   const [draft, setDraft] = useState<Partial<Trade>>(emptyDraft)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -137,19 +141,15 @@ function App() {
   }, [search, sideFilter, statusFilter, sortKey])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchTrades({
-        search: search.trim() || undefined,
-        side: sideFilter === 'ALL' ? undefined : sideFilter,
-        status: statusFilter === 'ALL' ? undefined : statusFilter,
-        sort: sortKey,
-        limit: pageSize,
-        offset: pageIndex * pageSize,
-      })
-    }, 250)
-
-    return () => window.clearTimeout(timer)
-  }, [search, sideFilter, statusFilter, sortKey, pageIndex, pageSize, fetchTrades])
+    void fetchTrades({
+      search: debouncedSearch.trim() || undefined,
+      side: sideFilter === 'ALL' ? undefined : sideFilter,
+      status: statusFilter === 'ALL' ? undefined : statusFilter,
+      sort: sortKey,
+      limit: pageSize,
+      offset: pageIndex * pageSize,
+    })
+  }, [debouncedSearch, sideFilter, statusFilter, sortKey, pageIndex, pageSize, fetchTrades])
 
   const openCreateForm = () => {
     setDraft({ ...emptyDraft, tradeDate: new Date().toISOString() })
