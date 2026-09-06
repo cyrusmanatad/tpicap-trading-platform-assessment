@@ -2,38 +2,75 @@ pipeline {
     agent any
 
     tools {
-        nodejs 'NodeJS-26'
+        nodejs 'NodeJS-22'
     }
 
     stages {
-        stage('Install Dependencies') {
+        stage('Environment') {
             steps {
-                sh 'node --version'
-                sh 'npm --version'
-                sh 'npm ci'
+                sh '''
+                    echo "Node: $(node --version)"
+                    echo "NPM:  $(npm --version)"
+                '''
             }
         }
 
-        stage('Test') {
-            steps {
-                sh 'npm test'
+        stage('Backend') {
+            stages {
+                stage('Install') {
+                    steps {
+                        dir('backend') {
+                            sh 'npm ci'
+                        }
+                    }
+                }
+
+                stage('Test') {
+                    steps {
+                        dir('backend') {
+                            sh 'npm test'
+                        }
+                    }
+                }
+
+                stage('Build') {
+                    steps {
+                        dir('backend') {
+                            sh 'npm run build'
+                        }
+                    }
+                }
             }
         }
 
-        stage('Build') {
-            steps {
-                sh 'npm run build'
+        stage('Frontend') {
+            stages {
+                stage('Install') {
+                    steps {
+                        dir('frontend') {
+                            sh 'npm ci'
+                        }
+                    }
+                }
+
+                stage('Build') {
+                    steps {
+                        dir('frontend') {
+                            sh 'npm run build'
+                        }
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'Build completed successfully.'
+            echo 'All applications built successfully.'
         }
 
         failure {
-            echo 'Build failed.'
+            echo 'One or more applications failed.'
         }
     }
 }
