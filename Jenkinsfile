@@ -1,15 +1,15 @@
 pipeline {
     agent any
 
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
+    tools {
+        nodejs 'NodeJS-22'
+    }
 
+    stages {
         stage('Install Dependencies') {
             steps {
+                sh 'node --version'
+                sh 'npm --version'
                 sh 'npm ci'
             }
         }
@@ -24,6 +24,16 @@ pipeline {
             steps {
                 sh 'npm run build'
             }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build completed successfully.'
+        }
+
+        failure {
+            echo 'Build failed.'
         }
     }
 }
