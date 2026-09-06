@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { CreateTradeDto } from './dto/create-trade.dto.js';
 import { UpdateTradeDto } from './dto/update-trade.dto.js';
 
 describe('Trade DTO validation', () => {
   it('accepts numeric strings and trims values for create payloads', () => {
-    const dto = Object.assign(new CreateTradeDto(), {
+    const dto = plainToInstance(CreateTradeDto, {
       symbol: '  aapl  ',
       quantity: '5',
       price: '123.45',
@@ -18,10 +19,10 @@ describe('Trade DTO validation', () => {
 
     const errors = validateSync(dto);
     expect(errors).toHaveLength(0);
-    expect(dto.symbol).toBe('aapl');
+    expect(dto.symbol).toBe('AAPL');
     expect(dto.quantity).toBe(5);
     expect(dto.price).toBe(123.45);
-    expect(dto.trader).toBe('alice');
+    expect(dto.trader).toBe('ALICE');
     expect(dto.book).toBe('EQ-NA');
   });
 
