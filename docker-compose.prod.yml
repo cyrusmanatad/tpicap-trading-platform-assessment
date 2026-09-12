@@ -1,0 +1,189 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: trading-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - trading-network
+
+
+  redis:
+    image: redis:7-alpine
+    container_name: trading-redis
+    restart: unless-stopped
+
+    networks:
+      - trading-network
+
+
+  backend-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+
+    container_name: trading-backend-1
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+    environment:
+      NODE_ENV: production
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+
+      PORT: 3000
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+    expose:
+      - "3000"
+
+    networks:
+      - trading-network
+
+
+  backend-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+
+    container_name: trading-backend-2
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+    environment:
+      NODE_ENV: production
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+
+      PORT: 3000
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+    expose:
+      - "3000"
+
+    networks:
+      - trading-network
+
+
+  backend-3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+
+    container_name: trading-backend-3
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+    environment:
+      NODE_ENV: production
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+
+      PORT: 3000
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+    expose:
+      - "3000"
+
+    networks:
+      - trading-network
+
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+
+    container_name: trading-frontend
+    restart: unless-stopped
+
+    expose:
+      - "80"
+
+    networks:
+      - trading-network
+
+
+  nginx:
+    image: nginx:alpine
+
+    container_name: trading-nginx
+
+    restart: unless-stopped
+
+    depends_on:
+      - frontend
+      - backend-1
+      - backend-2
+      - backend-3
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./nginx/default.prod.conf:/etc/nginx/nginx.conf:ro
+
+    networks:
+      - trading-network
+
+
+networks:
+  trading-network:
+    driver: bridge
+
+
+volumes:
+  postgres_data:
