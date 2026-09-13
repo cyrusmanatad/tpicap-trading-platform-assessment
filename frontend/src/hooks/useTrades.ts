@@ -80,7 +80,7 @@ export function useTrades() {
   useEffect(() => {
     const socket: Socket = io(undefined, {
       path: '/socket.io',
-      transports: ['websocket'],
+      // transports: ['websocket'],
     });
 
     setIsSocketConnected(socket.connected);
