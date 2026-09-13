@@ -102,6 +102,7 @@ services:
 
     volumes:
       - ./nginx/default.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
 
     networks:
       - trading-network
