@@ -77,6 +77,8 @@ services:
 
     container_name: trading-frontend
     restart: unless-stopped
+    environment:
+      VITE_BACKEND_API: ${VITE_BACKEND_API}
 
     expose:
       - "80"
@@ -102,7 +104,7 @@ services:
 
     volumes:
       - ./nginx/default.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - /etc/nginx/ssl:/etc/nginx/ssl:ro
 
     networks:
       - trading-network

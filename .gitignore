@@ -41,3 +41,9 @@ pgdata/
 # Temporary files
 *.tmp
 *.swp
+
+# SSL certificates/private keys
+nginx/ssl/
+*.key
+*.pem
+*.cert
