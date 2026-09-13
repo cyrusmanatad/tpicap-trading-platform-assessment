@@ -74,11 +74,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+      args:
+        VITE_BACKEND_API: ${VITE_BACKEND_API}      
 
     container_name: trading-frontend
     restart: unless-stopped
-    environment:
-      VITE_BACKEND_API: ${VITE_BACKEND_API}
 
     expose:
       - "80"

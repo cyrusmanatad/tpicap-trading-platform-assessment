@@ -8,6 +8,9 @@ RUN npm ci
 
 COPY . .
 
+ARG VITE_BACKEND_API
+ENV VITE_BACKEND_API=$VITE_BACKEND_API
+
 RUN npm run build
 
 
