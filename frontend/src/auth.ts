@@ -10,12 +10,16 @@ export type AuthUser = {
 export const AUTH_TOKEN_KEY = 'trading-desk-token';
 export const AUTH_USER_KEY = 'trading-desk-user';
 
+function readStored(key: string) {
+  return localStorage.getItem(key) ?? sessionStorage.getItem(key) ?? '';
+}
+
 export function getAuthToken() {
-  return localStorage.getItem(AUTH_TOKEN_KEY) ?? '';
+  return readStored(AUTH_TOKEN_KEY);
 }
 
 export function getAuthUser(): AuthUser | null {
-  const raw = localStorage.getItem(AUTH_USER_KEY);
+  const raw = readStored(AUTH_USER_KEY);
   if (!raw) {
     return null;
   }
@@ -27,14 +31,21 @@ export function getAuthUser(): AuthUser | null {
   }
 }
 
-export function setAuthSession(token: string, user: AuthUser) {
-  localStorage.setItem(AUTH_TOKEN_KEY, token);
-  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+export function setAuthSession(token: string, user: AuthUser, rememberTerminal = true) {
+  const storage = rememberTerminal ? localStorage : sessionStorage;
+  const other = rememberTerminal ? sessionStorage : localStorage;
+
+  storage.setItem(AUTH_TOKEN_KEY, token);
+  storage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  other.removeItem(AUTH_TOKEN_KEY);
+  other.removeItem(AUTH_USER_KEY);
 }
 
 export function clearAuthSession() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_USER_KEY);
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  sessionStorage.removeItem(AUTH_USER_KEY);
 }
 
 export function getUserDisplayName(user: AuthUser | null) {

@@ -119,7 +119,7 @@ services:
       - backend-2
       - backend-3
     ports:
-      - '8080:80'
+      - '8085:80'
     volumes:
       - ./nginx/default.conf:/etc/nginx/nginx.conf:ro
     restart: unless-stopped

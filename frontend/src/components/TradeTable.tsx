@@ -3,10 +3,12 @@ import { formatCurrency, formatMetric } from '../utils/trade-utils';
 
 interface TradeTableProps {
   trades: Trade[];
+  isLoading?: boolean;
   flashTradeId: string | null;
   flashTone: 'buy' | 'sell' | 'amber' | null;
   onAmend: (trade: Trade) => void;
   onCancel: (id: string) => void;
+  onNewTrade?: () => void;
   pageIndex: number;
   pageSize: number;
   totalCount: number;
@@ -15,10 +17,12 @@ interface TradeTableProps {
 
 export function TradeTable({
   trades,
+  isLoading = false,
   flashTradeId,
   flashTone,
   onAmend,
   onCancel,
+  onNewTrade,
   pageIndex,
   pageSize,
   totalCount,
@@ -49,7 +53,28 @@ export function TradeTable({
           </thead>
 
           <tbody>
-            {trades.map((trade) => {
+            {isLoading ? (
+              <tr>
+                <td colSpan={12} className="table-state-cell">
+                  <span className="mono muted">Loading trades from desk...</span>
+                </td>
+              </tr>
+            ) : null}
+            {!isLoading && trades.length === 0 ? (
+              <tr>
+                <td colSpan={12} className="table-state-cell">
+                  <div className="table-empty mono">
+                    <p>No trades match your filters.</p>
+                    {onNewTrade ? (
+                      <button type="button" className="secondary-btn" onClick={onNewTrade}>
+                        BOOK FIRST TRADE
+                      </button>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            ) : null}
+            {!isLoading ? trades.map((trade) => {
               const isCancelled = trade.status === 'CANCELLED';
               const rowTone = flashTradeId === trade.id ? `flash-${flashTone ?? 'buy'}` : '';
 
@@ -91,7 +116,7 @@ export function TradeTable({
                   </td>
                 </tr>
               );
-            })}
+            }) : null}
           </tbody>
         </table>
       </div>

@@ -162,6 +162,12 @@
   font-size: 0.6rem;
 }
 
+.coming-soon-label {
+  color: #7d8ea3;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+}
+
 .demo-credentials {
   color: #7d8ea3;
   font-size: 0.58rem;
@@ -383,6 +389,11 @@
 
 .ticker-track:hover {
   animation-play-state: paused;
+}
+
+.ticker-track-static {
+  animation: none;
+  width: 100%;
 }
 
 @keyframes ticker-scroll {
@@ -634,6 +645,25 @@
   font-size: 0.78rem;
   color: #edf3f8;
   vertical-align: middle;
+}
+
+.table-state-cell {
+  padding: 2rem 1rem !important;
+  text-align: center;
+}
+
+.table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  color: #92a0b3;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.table-empty p {
+  margin: 0;
 }
 
 .table-panel tbody tr {
