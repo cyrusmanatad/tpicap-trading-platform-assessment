@@ -5,6 +5,7 @@ interface AuthFormProps {
   onSubmit: (payload: {
     email: string;
     password: string;
+    rememberTerminal?: boolean;
     firstName?: string;
     lastName?: string;
     traderId?: string;
@@ -25,6 +26,8 @@ export function AuthForm({ mode, onSubmit, isSubmitting = false, error = null }:
   const [registerPassword, setRegisterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [rememberTerminal, setRememberTerminal] = useState(true);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const passwordScore = useMemo(() => {
     let score = 0;
@@ -41,11 +44,28 @@ export function AuthForm({ mode, onSubmit, isSubmitting = false, error = null }:
 
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await onSubmit({ email: loginEmail, password: loginPassword });
+    setFormError(null);
+    await onSubmit({
+      email: loginEmail,
+      password: loginPassword,
+      rememberTerminal,
+    });
   };
 
   const handleRegisterSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setFormError(null);
+
+    if (!acceptedTerms) {
+      setFormError('Accept the desk compliance policy and trading terms to continue.');
+      return;
+    }
+
+    if (registerPassword !== confirmPassword) {
+      setFormError('Passwords do not match.');
+      return;
+    }
+
     await onSubmit({
       firstName,
       lastName,
@@ -76,7 +96,8 @@ export function AuthForm({ mode, onSubmit, isSubmitting = false, error = null }:
       <form className="auth-panel" onSubmit={handleLoginSubmit}>
         <h2 className="auth-title mono">LOGIN</h2>
 
-        {error ? <div className="auth-error mono">{error}</div> : null}
+        {formError ? <div className="auth-error mono">{formError}</div> : null}
+        {!formError && error ? <div className="auth-error mono">{error}</div> : null}
 
         <label className="field mono">
           <span>DESK ID / EMAIL *</span>
@@ -107,17 +128,21 @@ export function AuthForm({ mode, onSubmit, isSubmitting = false, error = null }:
 
         <div className="auth-meta-row">
           <label className="remember-box mono">
-            <input type="checkbox" defaultChecked />
+            <input
+              type="checkbox"
+              checked={rememberTerminal}
+              onChange={(event) => setRememberTerminal(event.target.checked)}
+            />
             <span>REMEMBER THIS TERMINAL</span>
           </label>
-          <button type="button" className="text-link mono">FORGOT?</button>
+          <span className="coming-soon-label mono">PASSWORD RESET COMING SOON</span>
         </div>
 
         <button type="submit" className="primary-btn mono" disabled={isSubmitting}>
           {isSubmitting ? 'SIGNING IN...' : 'LOG IN TO DESK'}
         </button>
 
-        <div className="demo-credentials mono">DEMO CREDENTIALS — CYRUS@BROKERAGE.COM / TRADE2026!</div>
+        <div className="demo-credentials mono">DEMO CREDENTIALS: CYRUS@BROKERAGE.COM / TRADE2026!</div>
       </form>
     );
   }
@@ -126,7 +151,8 @@ export function AuthForm({ mode, onSubmit, isSubmitting = false, error = null }:
     <form className="auth-panel" onSubmit={handleRegisterSubmit}>
       <h2 className="auth-title mono">REGISTER</h2>
 
-      {error ? <div className="auth-error mono">{error}</div> : null}
+      {formError ? <div className="auth-error mono">{formError}</div> : null}
+      {!formError && error ? <div className="auth-error mono">{error}</div> : null}
 
       <div className="field-row two-up">
         <label className="field mono">
@@ -216,7 +242,11 @@ export function AuthForm({ mode, onSubmit, isSubmitting = false, error = null }:
         <span>I agree to the desk compliance policy and trading terms.</span>
       </label>
 
-      <button type="submit" className="primary-btn mono" disabled={isSubmitting}>
+      <button
+        type="submit"
+        className="primary-btn mono"
+        disabled={isSubmitting || !acceptedTerms}
+      >
         {isSubmitting ? 'CREATING...' : 'CREATE ACCOUNT'}
       </button>
     </form>

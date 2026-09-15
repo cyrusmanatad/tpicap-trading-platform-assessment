@@ -3,9 +3,10 @@ import { getTradeDirection } from '../utils/trade-utils';
 
 interface TickerTapeProps {
   trades: Trade[];
+  isLoading?: boolean;
 }
 
-export function TickerTape({ trades }: TickerTapeProps) {
+export function TickerTape({ trades, isLoading = false }: TickerTapeProps) {
   const tickerItems = [...trades]
     .slice(0, 10)
     .map((trade) => {
@@ -14,10 +15,11 @@ export function TickerTape({ trades }: TickerTapeProps) {
     });
 
   if (tickerItems.length === 0) {
+    const message = isLoading ? 'SYNCING TRADE FEED...' : 'NO RECENT TRADES ON TAPE';
     return (
       <div className="ticker-wrap" aria-label="Ticker tape">
-        <div className="ticker-track">
-          <span className="ticker-item mono">LOADING MARKET DATA...</span>
+        <div className="ticker-track ticker-track-static">
+          <span className="ticker-item mono">{message}</span>
         </div>
       </div>
     );

@@ -19,6 +19,7 @@ import { emptyDraft, formatCurrency, formatMetric } from './utils/trade-utils'
 type AuthSubmitPayload = {
   email: string
   password: string
+  rememberTerminal?: boolean
   firstName?: string
   lastName?: string
   traderId?: string
@@ -44,7 +45,7 @@ function App() {
     isSocketConnected,
     triggerFlash,
     fetchTrades,
-    // isLoading,
+    isLoading,
     pageMeta,
   } = useTrades()
   
@@ -119,7 +120,7 @@ function App() {
       }
 
       localStorage.removeItem('trading-desk-auth-message')
-      setAuthSession(result.access_token, user)
+      setAuthSession(result.access_token, user, payload.rememberTerminal ?? true)
       setCurrentUser(user)
       setIsAuthenticated(true)
     } catch (error) {
@@ -290,7 +291,7 @@ function App() {
           </div>
         </div>
 
-        <TickerTape trades={trades} />
+        <TickerTape trades={trades} isLoading={isLoading} />
       </header>
 
       <main className="desk-main">
@@ -380,10 +381,12 @@ function App() {
         <section>
           <TradeTable
             trades={trades}
+            isLoading={isLoading}
             flashTradeId={flashTradeId}
             flashTone={flashTone}
             onAmend={openEditForm}
             onCancel={handleCancelTrade}
+            onNewTrade={openCreateForm}
             pageIndex={pageIndex}
             pageSize={pageSize}
             totalCount={pageMeta.total}
