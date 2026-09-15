@@ -75,7 +75,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_BACKEND_API: ${VITE_BACKEND_API}      
+        VITE_BACKEND_API: ${VITE_BACKEND_API}
 
     container_name: trading-frontend
     restart: unless-stopped
@@ -99,8 +99,7 @@ services:
       - backend-1
 
     ports:
-      - "80:80"
-      - "443:443"
+      - "80"
 
     volumes:
       - ./nginx/default.prod.conf:/etc/nginx/nginx.conf:ro
