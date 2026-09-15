@@ -81,6 +81,10 @@ export function useTrades() {
     const socket: Socket = io(undefined, {
       path: '/socket.io',
       // transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     setIsSocketConnected(socket.connected);
