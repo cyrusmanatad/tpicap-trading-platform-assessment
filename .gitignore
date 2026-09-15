@@ -6,6 +6,7 @@ backend/node_modules/
 # Build output
 frontend/dist/
 backend/dist/
+backend/dist-local/
 frontend/build/
 backend/build/
 .vite/

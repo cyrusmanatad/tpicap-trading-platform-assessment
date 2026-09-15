@@ -23,8 +23,11 @@ export function useTrades() {
   const [isLoading, setIsLoading] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastQueryRef = useRef<TradeQueryParams>({});
 
   const fetchTrades = useCallback(async (params: TradeQueryParams = {}) => {
+    lastQueryRef.current = params;
+
     // Abort previous request if any
     try {
       if (abortControllerRef.current) {
@@ -91,18 +94,26 @@ export function useTrades() {
 
     socket.on('connect', () => {
       setIsSocketConnected(true);
+      void fetchTrades(lastQueryRef.current);
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      setIsSocketConnected(false);
+      if (reason === 'io server disconnect') {
+        socket.connect();
+      }
+    });
+
+    socket.on('connect_error', () => {
       setIsSocketConnected(false);
     });
 
-    socket.on('reconnect', () => {
+    socket.io.on('reconnect', () => {
       setIsSocketConnected(true);
     });
 
     socket.on('feed-status', (status: { connected?: boolean }) => {
-      if (typeof status?.connected === 'boolean') {
+      if (typeof status?.connected === 'boolean' && status.connected === socket.connected) {
         setIsSocketConnected(status.connected);
       }
     });
@@ -128,9 +139,17 @@ export function useTrades() {
     });
 
     return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
+      socket.off('feed-status');
+      socket.off('trade-created');
+      socket.off('trade-updated');
+      socket.off('trade-cancelled');
+      socket.io.off('reconnect');
       socket.disconnect();
     };
-  }, []);
+  }, [fetchTrades]);
 
   useEffect(() => {
     if (!simulateFeed) {

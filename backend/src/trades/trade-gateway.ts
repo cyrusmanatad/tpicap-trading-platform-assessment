@@ -16,19 +16,23 @@ export class TradeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  private emitFeedStatus(connected: boolean) {
-    this.server.emit('feed-status', { connected });
-  }
+  private connectedCount = 0;
 
   handleConnection(client: Socket) {
+    this.connectedCount += 1;
     console.log(`Client connected: ${client.id}`);
     client.emit('feed-status', { connected: true });
-    this.emitFeedStatus(true);
   }
 
   handleDisconnect(client: Socket) {
+    this.connectedCount = Math.max(0, this.connectedCount - 1);
     console.log(`Client disconnected: ${client.id}`);
-    this.emitFeedStatus(false);
+
+    // Remaining dashboards keep their own live status. Only signal feed-down
+    // when the last client has left (no open sockets remain to mark false).
+    if (this.connectedCount === 0) {
+      this.server.emit('feed-status', { connected: false });
+    }
   }
 
   notifyTradeCreated(trade: Trade) {
