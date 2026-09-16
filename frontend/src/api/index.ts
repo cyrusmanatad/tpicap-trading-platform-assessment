@@ -34,8 +34,10 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     const status = error?.response?.status;
+    const requestUrl = error.config?.url ?? "";
+    const isAuthAttempt = requestUrl.includes("/auth/login") || requestUrl.includes("/auth/register");
 
-    if (status === 401) {
+    if (status === 401 && !isAuthAttempt) {
       const message = "Your session has expired. Please log in again.";
       localStorage.setItem("trading-desk-auth-message", message);
       window.dispatchEvent(new CustomEvent("session-expired", { detail: message }));

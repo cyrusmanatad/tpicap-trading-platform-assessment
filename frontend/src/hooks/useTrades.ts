@@ -77,10 +77,6 @@ export function useTrades() {
   };
 
   useEffect(() => {
-    void fetchTrades();
-  }, [fetchTrades]);
-
-  useEffect(() => {
     const socket: Socket = io(undefined, {
       path: '/socket.io',
       // transports: ['websocket'],
