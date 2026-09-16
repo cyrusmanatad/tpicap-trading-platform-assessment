@@ -1,5 +1,5 @@
 import { api } from './index';
-import type { Trade, TradeSide, TradeStatus } from '../types/trade';
+import type { Trade, TradeHistoryEntry, TradeSide, TradeStatus } from '../types/trade';
 
 export type TradeQueryParams = {
   search?: string;
@@ -64,5 +64,10 @@ export async function updateTrade(id: string, payload: Partial<Trade>): Promise<
 
 export async function cancelTrade(id: string): Promise<Trade> {
   const { data } = await api.patch<Trade>(`/trades/${id}/cancel`);
+  return data;
+}
+
+export async function getTradeHistory(id: string): Promise<TradeHistoryEntry[]> {
+  const { data } = await api.get<TradeHistoryEntry[]>(`/trades/${id}/history`);
   return data;
 }

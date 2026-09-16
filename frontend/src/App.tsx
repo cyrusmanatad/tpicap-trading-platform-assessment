@@ -6,6 +6,7 @@ import { AuthForm } from './components/AuthForm'
 import { FilterButton } from './components/FilterButton'
 import { MetricCard } from './components/MetricCard'
 import { TickerTape } from './components/TickerTape'
+import { TradeHistoryDrawer } from './components/TradeHistoryDrawer'
 import { TradeTable } from './components/TradeTable'
 import { clearAuthSession, getAuthUser, getUserDisplayName, setAuthSession } from './auth'
 import { login, register } from './api/authApi'
@@ -60,6 +61,7 @@ function App() {
   const [draft, setDraft] = useState<Partial<Trade>>(emptyDraft)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [historyTradeId, setHistoryTradeId] = useState<string | null>(null)
   const tradeForm = useForm<TradeFormValues>({
     resolver: zodResolver(tradeFormSchema),
     mode: 'onChange',
@@ -155,7 +157,28 @@ function App() {
     })
   }, [isAuthenticated, debouncedSearch, sideFilter, statusFilter, sortKey, pageIndex, pageSize, fetchTrades])
 
+  const closeDrawers = () => {
+    setIsFormOpen(false)
+    setHistoryTradeId(null)
+  }
+
+  useEffect(() => {
+    if (!isFormOpen) {
+      return
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeDrawers()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isFormOpen])
+
   const openCreateForm = () => {
+    setHistoryTradeId(null)
     setDraft({ ...emptyDraft, tradeDate: new Date().toISOString() })
     tradeForm.reset({ ...tradeFormDefaults, tradeDate: new Date().toISOString() })
     setIsEditing(false)
@@ -163,6 +186,7 @@ function App() {
   }
 
   const openEditForm = (trade: Trade) => {
+    setHistoryTradeId(null)
     setDraft({ ...trade })
     tradeForm.reset({
       symbol: trade.symbol,
@@ -177,6 +201,11 @@ function App() {
     })
     setIsEditing(true)
     setIsFormOpen(true)
+  }
+
+  const openHistory = (id: string) => {
+    setIsFormOpen(false)
+    setHistoryTradeId(id)
   }
 
   const handleSaveTrade = async (values: TradeFormValues) => {
@@ -386,6 +415,7 @@ function App() {
             flashTone={flashTone}
             onAmend={openEditForm}
             onCancel={handleCancelTrade}
+            onHistory={openHistory}
             onNewTrade={openCreateForm}
             pageIndex={pageIndex}
             pageSize={pageSize}
@@ -396,12 +426,12 @@ function App() {
       </main>
 
       {isFormOpen && (
-        <div className="drawer-backdrop" onClick={() => setIsFormOpen(false)} aria-label="Close trade form" />
+        <div className="drawer-backdrop" onClick={closeDrawers} aria-label="Close trade form" />
       )}
-      <aside className={`trade-drawer panel ${isFormOpen ? 'open' : ''}`}>
+      <aside className={`trade-drawer panel ${isFormOpen ? 'open' : ''}`} inert={!isFormOpen}>
         <div className="drawer-header">
           <h2 className="mono">{isEditing ? 'AMEND TRADE' : 'NEW TRADE'}</h2>
-          <button type="button" className="close-btn" onClick={() => setIsFormOpen(false)}>
+          <button type="button" className="close-btn" onClick={closeDrawers} aria-label="Close trade form">
             ×
           </button>
         </div>
@@ -509,7 +539,7 @@ function App() {
           </label>
 
           <div className="drawer-actions">
-            <button type="button" className="secondary-btn mono" onClick={() => setIsFormOpen(false)}>
+            <button type="button" className="secondary-btn mono" onClick={closeDrawers}>
               DISCARD
             </button>
             <button type="submit" className="primary-btn mono" disabled={tradeForm.formState.isSubmitting}>
@@ -518,6 +548,8 @@ function App() {
           </div>
         </form>
       </aside>
+
+      <TradeHistoryDrawer tradeId={historyTradeId} onClose={closeDrawers} />
     </div>
   )
 }
