@@ -5,6 +5,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { CreateTradeDto } from './dto/create-trade.dto.js';
 import { FindTradesQueryDto } from './dto/find-trades-query.dto.js';
+import {
+  actorDisplayName,
+  diffTradeFields,
+  type AuditActor,
+  type FieldChange,
+  type TradeAuditAction,
+} from './trade-audit.js';
+import { TradeAuditLog } from './trade-audit-log.entity.js';
 import { Trade } from './trade.entity.js';
 import { UpdateTradeDto } from './dto/update-trade.dto.js';
 
@@ -41,7 +49,26 @@ export class TradesService {
   constructor(
     @InjectRepository(Trade)
     private readonly tradeRepository: Repository<Trade>,
+    @InjectRepository(TradeAuditLog)
+    private readonly auditLogRepository: Repository<TradeAuditLog>,
   ) {}
+
+  private async writeAudit(
+    tradeId: number,
+    action: TradeAuditAction,
+    actor: AuditActor,
+    changes: Record<string, FieldChange>,
+  ): Promise<void> {
+    const entry = this.auditLogRepository.create({
+      tradeId,
+      action,
+      actorUserId: actor.id,
+      actorEmail: actor.email,
+      actorName: actorDisplayName(actor),
+      changes,
+    });
+    await this.auditLogRepository.save(entry);
+  }
 
   private buildFilterQuery(query: FindTradesQueryDto = {}): SelectQueryBuilder<Trade> {
     const qb = this.tradeRepository.createQueryBuilder('trade');
@@ -142,7 +169,7 @@ export class TradesService {
     return this.tradeRepository.save(normalizedDefaultTrades as Trade[]);
   }
 
-  async create(createTradeDto: CreateTradeDto): Promise<Trade> {
+  async create(createTradeDto: CreateTradeDto, actor: AuditActor): Promise<Trade> {
     const normalizedTradeUuid = createTradeDto.trade_uuid ?? crypto.randomUUID();
 
     this.logger.debug({
@@ -157,10 +184,13 @@ export class TradesService {
       tradeDate: new Date(createTradeDto.tradeDate),
     });
 
-    return this.tradeRepository.save(trade);
+    const saved = await this.tradeRepository.save(trade);
+    const changes = diffTradeFields({}, saved as unknown as Record<string, unknown>);
+    await this.writeAudit(saved.id, 'CREATED', actor, changes);
+    return saved;
   }
 
-  async update(id: number, dto: UpdateTradeDto): Promise<Trade> {
+  async update(id: number, dto: UpdateTradeDto, actor: AuditActor): Promise<Trade> {
     const trade = await this.tradeRepository.findOne({ where: { id } });
 
     if (!trade) {
@@ -177,21 +207,54 @@ export class TradesService {
       ...safeUpdates
     } = dto as any;
 
+    const before = { ...trade };
     Object.assign(trade, safeUpdates);
+    if (safeUpdates.tradeDate) {
+      trade.tradeDate = new Date(safeUpdates.tradeDate);
+    }
 
-    return this.tradeRepository.save(trade);
+    const changes = diffTradeFields(
+      before as unknown as Record<string, unknown>,
+      trade as unknown as Record<string, unknown>,
+    );
+
+    const saved = await this.tradeRepository.save(trade);
+    if (Object.keys(changes).length > 0) {
+      await this.writeAudit(saved.id, 'UPDATED', actor, changes);
+    }
+    return saved;
   }
 
-  async cancel(id: number): Promise<Trade> {
+  async cancel(id: number, actor: AuditActor): Promise<Trade> {
     const trade = await this.tradeRepository.findOneBy({ id: Number(id) });
 
     if (!trade) {
       throw new NotFoundException(`Trade ${id} not found`);
     }
 
+    const beforeStatus = trade.status;
     trade.status = 'CANCELLED';
+    const saved = await this.tradeRepository.save(trade);
 
-    return this.tradeRepository.save(trade);
+    if (beforeStatus !== 'CANCELLED') {
+      await this.writeAudit(saved.id, 'CANCELLED', actor, {
+        status: { from: beforeStatus, to: 'CANCELLED' },
+      });
+    }
+
+    return saved;
+  }
+
+  async findHistory(id: number): Promise<TradeAuditLog[]> {
+    const trade = await this.tradeRepository.findOne({ where: { id } });
+    if (!trade) {
+      throw new NotFoundException(`Trade ${id} not found`);
+    }
+
+    return this.auditLogRepository.find({
+      where: { tradeId: id },
+      order: { createdAt: 'DESC', id: 'DESC' },
+    });
   }
 
   async onModuleInit(): Promise<void> {

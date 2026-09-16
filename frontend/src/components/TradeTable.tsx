@@ -8,6 +8,7 @@ interface TradeTableProps {
   flashTone: 'buy' | 'sell' | 'amber' | null;
   onAmend: (trade: Trade) => void;
   onCancel: (id: string) => void;
+  onHistory: (id: string) => void;
   onNewTrade?: () => void;
   pageIndex: number;
   pageSize: number;
@@ -22,6 +23,7 @@ export function TradeTable({
   flashTone,
   onAmend,
   onCancel,
+  onHistory,
   onNewTrade,
   pageIndex,
   pageSize,
@@ -111,6 +113,13 @@ export function TradeTable({
                         onClick={() => onCancel(trade.id)}
                       >
                         CANCEL
+                      </button>
+                      <button
+                        type="button"
+                        className="action-btn history-btn"
+                        onClick={() => onHistory(trade.id)}
+                      >
+                        HISTORY
                       </button>
                     </div>
                   </td>

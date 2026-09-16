@@ -14,3 +14,21 @@ export interface Trade {
   tradeDate: string;
   status: TradeStatus;
 }
+
+export type TradeHistoryAction = 'CREATED' | 'UPDATED' | 'CANCELLED';
+
+export type TradeFieldChange = {
+  from: string | number | null;
+  to: string | number | null;
+};
+
+export type TradeHistoryEntry = {
+  id: number;
+  tradeId: number;
+  action: TradeHistoryAction;
+  actorUserId: string;
+  actorEmail: string;
+  actorName: string;
+  changes: Record<string, TradeFieldChange>;
+  createdAt: string;
+};
