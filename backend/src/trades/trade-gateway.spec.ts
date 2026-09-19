@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { TradeGateway } from './trade-gateway.js';
 
 const require = createRequire(import.meta.url);
-const { io } = require('../../../frontend/node_modules/socket.io-client') as {
+const { io } = require('socket.io-client') as {
   io: (url: string, opts?: Record<string, unknown>) => {
     connected: boolean;
     on: (event: string, handler: (...args: any[]) => void) => void;
